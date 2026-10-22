@@ -1,8 +1,10 @@
 <?php
 require_once('vendor/autoload.php');
+require_once('helpers.php');
 
 $article_url = "";
 $article_html = "";
+$readable_article = "";
 $error_text = "";
 
 // List of Content-Types that we know we can (try to) parse. 
@@ -30,42 +32,41 @@ if (substr( $article_url, 0, 4 ) != "http") {
 }
 
 $url = parse_url($article_url);
-$host = $url['host'];
+$host = $url['host'] ?? '';
 
 // Attempt to figure out what the requested URL content-type may be
-$context = stream_context_create(['http' => array('method' => 'HEAD')]);
-$headers = get_headers($article_url, true, $context);
+$headers = @get_headers($article_url, true, frog_context('HEAD'));
+$content_type = frog_header($headers, 'Content-Type');
+$content_length = frog_header($headers, 'Content-Length');
 
-if (!array_key_exists('Content-Type', $headers) || !array_key_exists('Content-Length', $headers)) {
+if (!$content_type) {
     $error_text .=  "Failed to get the article, its server did not return expected details :( <br>";
 }
 else {
-    // Attempt to handle downloads or other mime-types by passing proxying them through.
-    if (!in_array($headers['Content-Type'], $compatible_content_types)) {
-        $filesize = $headers['Content-Length'];
+    // Compare only the media type, e.g. "text/html" from "text/html; charset=utf-8"
+    $media_type = strtolower(trim(explode(';', $content_type)[0]));
 
-        // Check if the linked file isn't too large for us to proxy.
-        if ($filesize > $proxy_download_max_filesize) {
-            echo 'Failed to proxy file download, it\'s too large. :( <br>';
-            echo 'You can try downloading the file directly: ' . $article_url;
+    // Attempt to handle downloads or other mime-types by passing proxying them through.
+    if (!in_array($media_type, $compatible_content_types)) {
+        $filesize = $content_length;
+
+        // Check if the linked file isn't too large for us to proxy (or of unknown size).
+        if (!is_numeric($filesize) || $filesize > $proxy_download_max_filesize) {
+            echo 'Failed to proxy file download, it\'s too large or its size is unknown. :( <br>';
+            echo 'You can try downloading the file directly: ' . h($article_url);
             die();
         }
         else {
-            $contentType = $headers['Content-Type'];
-            // Only use the last-provided content type if an array was returned (ie. when there were redirects involved)
-            if (is_array($contentType)) {
-                $contentType = $contentType[count($contentType)-1];
-            }
-
-            $filename = basename($url['path']);
+            $filename = basename((string) ($url['path'] ?? ''));
 
             // If no filename can be deduced from the URL, set a placeholder filename
             if (!$filename) {
                 $filename = "download";
             }
-            
+            $filename = str_replace(['"', "\r", "\n"], '', $filename);
+
             // Set the content headers based on the file we're proxying through.
-            header('Content-Type: ' . $contentType);
+            header('Content-Type: ' . $content_type);
             header('Content-Length: ' . $filesize);
             // Set the content-disposition to encourage the browser to download the file.
             header('Content-Disposition: attachment; filename="'. $filename . '"');
@@ -89,7 +90,7 @@ $configuration
 
 $readability = new Readability($configuration);
 
-if(!$article_html = file_get_contents($article_url)) {
+if(!$article_html = @file_get_contents($article_url, false, frog_context())) {
     $error_text .=  "Failed to get the article :( <br>";
 }
 
@@ -100,7 +101,10 @@ try {
     $readable_article = str_replace( 'em>', 'i>', $readable_article ); //change <em> to <i>
     
     $readable_article = clean_str($readable_article);
-    $readable_article = str_replace( 'href="http', 'href="/read.php?a=http', $readable_article ); //route links through proxy
+    //route links through proxy, URL-encoded so query strings (&, #) survive
+    $readable_article = preg_replace_callback('/href="(https?:[^"]*)"/i', function ($m) {
+        return 'href="/read.php?a=' . urlencode(html_entity_decode($m[1], ENT_QUOTES, 'UTF-8')) . '"';
+    }, $readable_article);
     
 } catch (ParseException $e) {
     $error_text .= 'Sorry! ' . $e->getMessage() . '<br>';
@@ -122,25 +126,25 @@ function clean_str($str) {
  
  <html>
  <head>
-     <title><?php echo $readability->getTitle();?></title>
+     <title><?php echo h($readability->getTitle());?></title>
  </head>
  <body>
     <p>
         <form action="/read.php" method="get">
-        <a href="/">Back to <b><font color="#008000">Frog</font><font color="000000">Find!</font></a></b> | Browsing URL: <input type="text" size="38" name="a" value="<?php echo $article_url ?>">
+        <a href="/">Back to <b><font color="#008000">Frog</font><font color="000000">Find!</font></a></b> | Browsing URL: <input type="text" size="38" name="a" value="<?php echo h($article_url) ?>">
         <input type="submit" value="Go!">
         </form>
     </p>
     <hr>
-    <h1><?php echo clean_str($readability->getTitle());?></h1>
+    <h1><?php echo h(clean_str((string) $readability->getTitle()));?></h1>
     <p> <?php
         $img_num = 0;
         $imgline_html = "View page images:";
         foreach ($readability->getImages() as $image_url):
             //we can only do png and jpg
-            if (strpos($image_url, ".jpg") || strpos($image_url, ".jpeg") || strpos($image_url, ".png") === true) {
+            if (frog_image_type($image_url)) {
                 $img_num++;
-                $imgline_html .= " <a href='image.php?i=" . $image_url . "'>[$img_num]</a> ";
+                $imgline_html .= " <a href='/image.php?i=" . urlencode($image_url) . "'>[$img_num]</a> ";
             }
         endforeach;
         if($img_num>0) {

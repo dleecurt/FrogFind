@@ -1,15 +1,17 @@
 <?php
 require_once('vendor/autoload.php');
+require_once('helpers.php');
 
 $show_results = FALSE;
 $results_html = "";
 $final_result_html = "<hr>";
+$error_text = "";
 
 if(isset( $_GET['q'])) { // if there's a search query, show the results for it
     $query = urlencode($_GET["q"]);
     $show_results = TRUE;
     $search_url = "https://html.duckduckgo.com/html?q=" . $query;
-    if(!$results_html = file_get_contents($search_url)) {
+    if(!$results_html = @file_get_contents($search_url, false, frog_context())) {
         $error_text .=  "Failed to get results, sorry :( <br>";
     }
     $simple_results=$results_html;
@@ -40,6 +42,9 @@ if(isset( $_GET['q'])) { // if there's a search query, show the results for it
                                 . $result_display_url . "</font></a><br>" . $result_snippet . "<br><br><hr>";
         }
     }
+    if ($total_results < 1 && !$error_text) {
+        $error_text .= "No results. DuckDuckGo may be blocking this server, try again later. <br>";
+    }
 }
 
 //replace chars that old machines probably can't handle
@@ -67,13 +72,14 @@ function clean_str($str) {
 <?php if($show_results) { // there's a search query in q, so show search results ?>
 
     <form action="/" method="get">
-    <a href="/"><font size=6 color="#008000">Frog</font><font size=6 color="#000000">Find!</font></a> Leap again: <input type="text" size="30" name="q" value="<?php echo urldecode($query) ?>">
+    <a href="/"><font size=6 color="#008000">Frog</font><font size=6 color="#000000">Find!</font></a> Leap again: <input type="text" size="30" name="q" value="<?php echo h(urldecode($query)) ?>">
     <input type="submit" value="Ribbbit!">
     </form>
     <hr>
     <br>
-    <center>Search Results for <b><?php echo strip_tags(urldecode($query)) ?></b></center>
+    <center>Search Results for <b><?php echo h(urldecode($query)) ?></b></center>
     <br>
+    <?php if($error_text) { echo "<p><font color='red'>" . $error_text . "</font></p>"; } ?>
     <?php echo $final_result_html ?>
     
 <?php } else { // no search query, so show new search ?>

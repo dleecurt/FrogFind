@@ -1,4 +1,5 @@
 <?php
+require_once('helpers.php');
 
 $url = "";
 $filetype = "";
@@ -17,13 +18,16 @@ if (substr( $url, 0, 4 ) != "http") {
 }
 
 //we can only do jpg and png here
-if (strpos($url, ".jpg") || strpos($url, ".jpeg") === true) {
-    $filetype = "jpg";
-    $raw_image = imagecreatefromjpeg($url);
-} elseif (strpos($url, ".png") === true) {
-    $filetype = "png";
-    $raw_image = imagecreatefrompng($url);
+$filetype = frog_image_type($url);
+if ($filetype === "jpg") {
+    $raw_image = @imagecreatefromjpeg($url);
+} elseif ($filetype === "png") {
+    $raw_image = @imagecreatefrompng($url);
 } else {
+    exit();
+}
+
+if (!$raw_image) {
     exit();
 }
 
@@ -39,14 +43,16 @@ if ($raw_imagex >= $raw_imagey) {
 }
 
 $dest_image = imagecreatetruecolor($dest_imagex, $dest_imagey);
+// white background, so transparent PNGs don't come out black
+imagefill($dest_image, 0, 0, imagecolorallocate($dest_image, 255, 255, 255));
 
 imagecopyresampled($dest_image, $raw_image, 0, 0, 0, 0, $dest_imagex, $dest_imagey, $raw_imagex, $raw_imagey);
 
-header('Content-type: image/' . $filetype); 
-if ($filetype = "jpg") {
+header('Content-type: image/' . ($filetype === 'jpg' ? 'jpeg' : 'png'));
+if ($filetype === "jpg") {
     imagejpeg($dest_image,NULL,80); //80% quality
-} elseif ($filetype = "png") {
-    imagepng($dest_image,NULL,8); //80% compression
+} elseif ($filetype === "png") {
+    imagepng($dest_image,NULL,8); //zlib compression level 8 of 9
 }
 
 ?>
