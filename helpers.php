@@ -92,6 +92,24 @@ function frog_final_url($start_url, $response_headers) {
     return $url;
 }
 
+// Build the FrogFind link for one search result. DuckDuckGo's href is a
+// redirect like "//duckduckgo.com/l/?uddg=<encoded url>&amp;rut=<tracking>";
+// take the real destination from uddg and drop the tracking parameter.
+// Returns an unescaped URL; pass it through h() when writing it into HTML.
+function frog_result_link($ddg_href) {
+    $href = html_entity_decode(trim((string) $ddg_href), ENT_QUOTES, 'UTF-8');
+    $target = $href;
+    $query = parse_url($href, PHP_URL_QUERY);
+    if ($query) {
+        parse_str($query, $params);
+        if (!empty($params['uddg']) && is_string($params['uddg'])) {
+            $target = $params['uddg'];
+        }
+    }
+    $target = frog_normalize_url($target);
+    return $target === null ? '/' : '/read.php?a=' . urlencode($target);
+}
+
 // Escape text for HTML output.
 function h($str) {
     return htmlspecialchars((string) $str, ENT_QUOTES, 'UTF-8');

@@ -27,7 +27,7 @@ if(isset( $_GET['q'])) { // if there's a search query, show the results for it
             // result link, redirected through our proxy
             $result_link = explode('class="result__a" href="', $result_blocks[$x])[1];
             $result_topline = explode('">', $result_link);
-            $result_link = str_replace( '//duckduckgo.com/l/?uddg=', '/read.php?a=', $result_topline[0]);
+            $result_link = frog_result_link($result_topline[0]);
             // result title
             $result_title = str_replace("</a>","",explode("\n", $result_topline[1]));
             // result display url
@@ -38,7 +38,8 @@ if(isset( $_GET['q'])) { // if there's a search query, show the results for it
             $result_snippet = explode('">', $result_snippet)[1];
             $result_snippet = explode('</a>', $result_snippet)[0];
 
-            $final_result_html .= "<br><a href='" . $result_link . "'><font size='4'><b>" . $result_title[0] . "</b></font><br><font color='#008000' size='2'>" 
+            // double-quoted attributes only: Mosaic and other early browsers don't understand single quotes
+            $final_result_html .= "<br><a href=\"" . h($result_link) . "\"><font size=\"4\"><b>" . $result_title[0] . "</b></font><br><font color=\"#008000\" size=\"2\">" 
                                 . $result_display_url . "</font></a><br>" . $result_snippet . "<br><br><hr>";
         }
     }
@@ -79,7 +80,7 @@ function clean_str($str) {
     <br>
     <center>Search Results for <b><?php echo h(urldecode($query)) ?></b></center>
     <br>
-    <?php if($error_text) { echo "<p><font color='red'>" . $error_text . "</font></p>"; } ?>
+    <?php if($error_text) { echo '<p><font color="red">' . $error_text . '</font></p>'; } ?>
     <?php echo $final_result_html ?>
     
 <?php } else { // no search query, so show new search ?>
