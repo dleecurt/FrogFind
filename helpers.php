@@ -43,6 +43,32 @@ function frog_header($headers, $name) {
     return null;
 }
 
+// Turn what a person typed into a fetchable http(s) URL, or return null.
+// "example.com/page" and "//example.com" get "http://" added (https-only sites
+// redirect there anyway), the scheme is matched case-insensitively, and other
+// schemes like ftp:, file: or javascript: are refused.
+function frog_normalize_url($input) {
+    $url = trim((string) $input);
+    if ($url === '') return null;
+
+    if (preg_match('#^([a-z][a-z0-9+.-]*)://#i', $url, $m)) {
+        $scheme = strtolower($m[1]);
+        if ($scheme !== 'http' && $scheme !== 'https') return null;
+        $url = $scheme . substr($url, strlen($m[1]));
+    } elseif (substr($url, 0, 2) === '//') {
+        $url = 'http:' . $url;
+    } elseif (preg_match('#^[a-z][a-z0-9+.-]*:(?!\d)#i', $url)) {
+        // "mailto:x", "javascript:x" (but not "host:8080", a host with a port)
+        return null;
+    } else {
+        $url = 'http://' . $url;
+    }
+
+    $host = parse_url($url, PHP_URL_HOST);
+    if (!$host) return null;
+    return $url;
+}
+
 // Escape text for HTML output.
 function h($str) {
     return htmlspecialchars((string) $str, ENT_QUOTES, 'UTF-8');

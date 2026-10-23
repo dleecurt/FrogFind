@@ -26,10 +26,14 @@ if( isset( $_GET['a'] ) ) {
     exit();
 }
 
-if (substr( $article_url, 0, 4 ) != "http") {
-    echo("That's not a web page :(");
+// Accept addresses typed without "http://", and refuse non-web schemes
+$normalized_url = frog_normalize_url($article_url);
+if ($normalized_url === null) {
+    echo("That's not a web page :( <br>");
+    echo('Try an address like <b>example.com</b> or <b>http://example.com/page.html</b>. <a href="/">Back to FrogFind</a>');
     die();
 }
+$article_url = $normalized_url;
 
 $url = parse_url($article_url);
 $host = $url['host'] ?? '';
