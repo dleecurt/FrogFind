@@ -69,6 +69,29 @@ function frog_normalize_url($input) {
     return $url;
 }
 
+// Work out where a request really ended up after redirects. Pass the URL that
+// was requested and $http_response_header from the file_get_contents() call;
+// each Location header is resolved against the URL before it.
+function frog_final_url($start_url, $response_headers) {
+    $url = $start_url;
+    if (!is_array($response_headers)) return $url;
+    foreach ($response_headers as $line) {
+        if (stripos($line, 'Location:') === 0) {
+            $location = trim(substr($line, strlen('Location:')));
+            if ($location === '') continue;
+            try {
+                $url = (string) \League\Uri\UriResolver::resolve(
+                    \League\Uri\Http::createFromString($location),
+                    \League\Uri\Http::createFromString($url)
+                );
+            } catch (\Throwable $e) {
+                // ignore a malformed Location header and keep the last good URL
+            }
+        }
+    }
+    return $url;
+}
+
 // Escape text for HTML output.
 function h($str) {
     return htmlspecialchars((string) $str, ENT_QUOTES, 'UTF-8');

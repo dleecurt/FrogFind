@@ -36,7 +36,6 @@ if ($normalized_url === null) {
 $article_url = $normalized_url;
 
 $url = parse_url($article_url);
-$host = $url['host'] ?? '';
 
 // Attempt to figure out what the requested URL content-type may be
 $headers = @get_headers($article_url, true, frog_context('HEAD'));
@@ -86,17 +85,23 @@ use fivefilters\Readability\Readability;
 use fivefilters\Readability\Configuration;
 use fivefilters\Readability\ParseException;
 
-$configuration = new Configuration();
-$configuration
-    ->setArticleByLine(false)
-    ->setFixRelativeURLs(true)
-    ->setOriginalURL('http://' . $host);
-
-$readability = new Readability($configuration);
+require_once('FrogReadability.php');
 
 if(!$article_html = @file_get_contents($article_url, false, frog_context())) {
     $error_text .=  "Failed to get the article :( <br>";
 }
+
+// Relative links are resolved against the page's real address: the full URL
+// (scheme, port, path), after following any redirects.
+$base_url = frog_final_url($article_url, isset($http_response_header) ? $http_response_header : []);
+
+$configuration = new Configuration();
+$configuration
+    ->setArticleByLine(false)
+    ->setFixRelativeURLs(true)
+    ->setOriginalURL($base_url);
+
+$readability = new FrogReadability($configuration);
 
 try {
     $readability->parse($article_html);
